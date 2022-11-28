@@ -35,8 +35,10 @@ add_executable(${PROJ}
 
 target_compile_options(${PROJ}
   PRIVATE
-  -Wall
-  -O3)
+  -O0
+  -g
+#  -O3
+  -Wall)
 
 target_link_libraries(${PROJ}
   PRIVATE
