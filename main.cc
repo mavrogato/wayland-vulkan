@@ -6,6 +6,12 @@
 #include <memory>
 #include <tuple>
 #include <utility>
+//#include <ranges>
+            // std::vector result = images | std::views::transform([&](auto image) {
+            //     return safe_ptr(image, [&](auto ptr) {
+            //         vkDestroyImage(device.get(), ptr, nullptr);
+            //     });
+            // });
 #include <initializer_list>
 
 #include <wayland-client.h>
@@ -384,6 +390,11 @@ int main() {
                 .queueCount = 1,
                 .pQueuePriorities = nullptr,
             };
+
+            char const* extensions[] = {
+                VK_KHR_SWAPCHAIN_EXTENSION_NAME,
+            };
+
             VkDeviceCreateInfo deviceCreateInfo = {
                 .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
                 .pNext = nullptr,
@@ -392,8 +403,8 @@ int main() {
                 .pQueueCreateInfos = &deviceQueueCreateInfo,
                 .enabledLayerCount = 0,
                 .ppEnabledLayerNames = nullptr,
-                .enabledExtensionCount = 0,
-                .ppEnabledExtensionNames = nullptr,
+                .enabledExtensionCount = std::size(extensions),
+                .ppEnabledExtensionNames = extensions,
                 .pEnabledFeatures = &requiredFeatures,
             };
             VkDevice device_raw = nullptr;
@@ -452,18 +463,50 @@ int main() {
                 .compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR,
                 .presentMode = VK_PRESENT_MODE_FIFO_KHR,
                 .clipped = VK_TRUE,
-                //.oldSwapchain = swapchain,
+                .oldSwapchain = swapchain,
             };
             if (auto ret = vkCreateSwapchainKHR(device.get(), &info, nullptr, &swapchain); ret != VK_SUCCESS) {
                 std::cerr << "vkCreateSwapchainKHR failed..." << std::endl;
             }
-            std::cout << "swapchain: " << swapchain << std::endl;
             return swapchain;
         };
         auto swapchain = safe_ptr(create_swapchain(),
                                   [&](auto ptr) noexcept {
                                       vkDestroySwapchainKHR(device.get(), ptr, nullptr);
                                   });
+
+        auto images = [&]() {
+            uint32_t count = 0;
+            if (VK_SUCCESS != vkGetSwapchainImagesKHR(device.get(), swapchain.get(), &count, nullptr)) {
+                //...
+            }
+            std::vector<VkImage> images(count);
+            if (VK_SUCCESS != vkGetSwapchainImagesKHR(device.get(), swapchain.get(), &count, images.data())) {
+                //...
+            }
+            return images;
+            
+            // auto deleter = [&](auto image) noexcept {
+            //     vkDestroyImage(device.get(), image, nullptr);
+            // };
+            // std::vector<std::unique_ptr<VkImage_T, decltype (deleter)>> result;
+            // for (auto image : images) {
+            //     result.push_back(safe_ptr(image, deleter));
+            // }
+            // return result;
+        }();
+
+        uint32_t idx = 0;
+        while (VK_NOT_READY == vkAcquireNextImageKHR(device.get(),
+                                                     swapchain.get(),
+                                                     0,
+                                                     nullptr,
+                                                     nullptr,
+                                                     &idx))
+            continue;
+
+        std::cout << idx << std::endl;
+
         // wait to clean up
         while (vkDeviceWaitIdle(device.get()) != VK_SUCCESS) continue;
         return 0;
